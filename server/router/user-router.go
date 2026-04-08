@@ -60,7 +60,7 @@ type GetSessionResponse struct {
 }
 
 type CreateUserRequest struct {
-	Email          string `json:"email" validate:"required,max=254"`
+	Email          string `json:"email" validate:"required,max=256"`
 	Firstname      string `json:"firstname" validate:"required,max=128"`
 	Lastname       string `json:"lastname" validate:"required,max=128"`
 	AtlassianID    string `json:"atlassianId"`
@@ -106,7 +106,7 @@ type SetPasswordRequest struct {
 }
 
 type InitMergeUsersRequest struct {
-	Email string `json:"email" validate:"required,email,max=254"`
+	Email string `json:"email" validate:"required,email,max=256"`
 }
 
 type GenerateTotpResponse struct {
@@ -482,6 +482,7 @@ func (router *UserRouter) setPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	e.HashedPassword = NullString(GetUserRepository().GetHashedPassword(m.Password))
+	e.PasswordUpdateRequired = user.ID != e.ID
 	if err := GetUserRepository().Update(e); err != nil {
 		log.Println(err)
 		SendInternalServerError(w)
@@ -646,6 +647,19 @@ func (router *UserRouter) update(w http.ResponseWriter, r *http.Request) {
 		SendForbidden(w)
 		return
 	}
+
+	if m.AuthProviderID != "" {
+		if !ValidateGUID(m.AuthProviderID) {
+			SendBadRequest(w)
+			return
+		}
+		authProvider, _ := GetAuthProviderRepository().GetOneByOrgId(m.AuthProviderID, user.OrganizationID)
+		if authProvider == nil {
+			SendBadRequest(w)
+			return
+		}
+	}
+
 	eNew := router.copyFromRestModel(&m)
 	eNew.ID = e.ID
 	if user.ID == e.ID {
@@ -662,16 +676,21 @@ func (router *UserRouter) update(w http.ResponseWriter, r *http.Request) {
 		eNew.HashedPassword = NullString("")
 		eNew.AuthProviderID = NullUUID("")
 		eNew.PasswordPending = true
+		GetSessionRepository().DeleteOfUser(e)
 	} else if m.Password != "" {
 		// Admin provided a new password - update it
 		eNew.HashedPassword = NullString(GetUserRepository().GetHashedPassword(m.Password))
 		eNew.AuthProviderID = NullUUID("")
 		eNew.PasswordPending = false
+		GetSessionRepository().DeleteOfUser(e)
 	} else if m.AuthProviderID != "" {
 		// Admin set an auth provider - update it
 		eNew.HashedPassword = NullString("")
 		eNew.AuthProviderID = NullUUID(m.AuthProviderID)
 		eNew.PasswordPending = false
+		if m.AuthProviderID != string(e.AuthProviderID) {
+			GetSessionRepository().DeleteOfUser(e)
+		}
 	} else {
 		// No auth method change - preserve existing values
 		eNew.HashedPassword = e.HashedPassword
@@ -767,6 +786,19 @@ func (router *UserRouter) create(w http.ResponseWriter, r *http.Request) {
 		SendForbidden(w)
 		return
 	}
+
+	if m.AuthProviderID != "" {
+		if !ValidateGUID(m.AuthProviderID) {
+			SendBadRequest(w)
+			return
+		}
+		authProvider, _ := GetAuthProviderRepository().GetOneByOrgId(m.AuthProviderID, user.OrganizationID)
+		if authProvider == nil {
+			SendBadRequest(w)
+			return
+		}
+	}
+
 	e := router.copyFromRestModel(&m)
 	if e.OrganizationID == "" || !GetUserRepository().IsSuperAdmin(user) {
 		e.OrganizationID = user.OrganizationID
@@ -830,16 +862,19 @@ func (router *UserRouter) copyFromRestModel(m *CreateUserRequest) *User {
 		// Invitation mode: user needs to set password via email link
 		e.HashedPassword = NullString("")
 		e.AuthProviderID = NullUUID("")
+		e.PasswordUpdateRequired = false
 		e.PasswordPending = true
 	} else if m.Password != "" {
 		// Password mode: password provided by admin
 		e.HashedPassword = NullString(GetUserRepository().GetHashedPassword(m.Password))
 		e.AuthProviderID = NullUUID("")
+		e.PasswordUpdateRequired = true
 		e.PasswordPending = false
 	} else {
 		// IdP mode: user logs in via external auth provider
 		e.HashedPassword = NullString("")
 		e.AuthProviderID = NullUUID(m.AuthProviderID)
+		e.PasswordUpdateRequired = false
 		e.PasswordPending = false
 	}
 

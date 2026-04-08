@@ -317,7 +317,7 @@
   "week": "Week",
   "weekly": "weekly",
   "weeks": "weeks",
-  "7workday-0": "יום ראשון",
+  "workday-0": "יום ראשון",
   "workday-1": "יום שני",
   "workday-2": "יום שלישי",
   "workday-3": "יום רביעי",
@@ -416,5 +416,9 @@
   "allAreas": "All areas",
   "lastMonth": "Last month",
   "nextWeek": "Next week",
-  "targetUtilizationHoursPerWeek": "Target weekly utilization per space"
+  "targetUtilizationHoursPerWeek": "Target weekly utilization per space",
+  "newPasswordPlaceholder": "New password",
+  "passwordUpdateInfo": "Your current password needs to be changed. Please select a new password that is different to the current one.",
+  "logoutOthers": "Log out all but this session",
+  "previousDay": "Previous day"
 }

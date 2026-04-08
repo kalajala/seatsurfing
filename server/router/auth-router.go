@@ -105,7 +105,7 @@ type IdPUserInfo struct {
 
 type InitPasswordResetRequest struct {
 	OrganizationID string `json:"organizationId" validate:"required,uuid"`
-	Email          string `json:"email" validate:"required,email,max=254"`
+	Email          string `json:"email" validate:"required,email,max=256"`
 }
 
 type CompletePasswordResetRequest struct {
@@ -121,12 +121,19 @@ type AuthPreflightResponse struct {
 }
 
 type AuthPasswordRequest struct {
-	Email             string          `json:"email" validate:"required,email,max=254"`
+	Email             string          `json:"email" validate:"required,email,max=256"`
 	Password          string          `json:"password" validate:"required,min=8,max=64"`
 	OrganizationID    string          `json:"organizationId" validate:"required,uuid"`
 	Code              string          `json:"code,omitempty"`
 	PasskeyStateID    string          `json:"passkeyStateId,omitempty"`
 	PasskeyCredential json.RawMessage `json:"passkeyCredential,omitempty"`
+}
+
+type PasswordUpdateRequest struct {
+	Email          string `json:"email" validate:"required,email,max=256"`
+	Password       string `json:"password" validate:"required,min=8,max=64"`
+	NewPassword    string `json:"newPassword" validate:"required,min=8,max=64"`
+	OrganizationID string `json:"organizationId" validate:"required,uuid"`
 }
 
 type RefreshRequest struct {
@@ -157,6 +164,7 @@ func (router *AuthRouter) SetupRoutes(s *mux.Router) {
 	s.HandleFunc("/{id}/login/{type}/", router.login).Methods("GET")
 	s.HandleFunc("/{id}/callback", router.callback).Methods("GET")
 	s.HandleFunc("/login", router.loginPassword).Methods("POST")
+	s.HandleFunc("/updatepw", router.updatePassword).Methods("POST")
 	s.HandleFunc("/passkey/login/begin", router.beginPasskeyLogin).Methods("POST")
 	s.HandleFunc("/passkey/login/finish", router.finishPasskeyLogin).Methods("POST")
 	s.HandleFunc("/logout/{where}", router.logout).Methods("GET")
@@ -297,19 +305,14 @@ func (router *AuthRouter) initPasswordReset(w http.ResponseWriter, r *http.Reque
 	}
 	user, err := GetUserRepository().GetByEmail(m.OrganizationID, m.Email)
 	if user == nil || err != nil {
+		if err != nil {
+			log.Println(err)
+		}
 		log.Printf("Password reset failed: user %s not found in org %s\n", m.Email, m.OrganizationID)
 		SendUpdated(w)
 		return
 	}
-	if user.HashedPassword == "" {
-		SendUpdated(w)
-		return
-	}
-	if user.Disabled {
-		SendUpdated(w)
-		return
-	}
-	if user.Role == UserRoleServiceAccountRO || user.Role == UserRoleServiceAccountRW {
+	if !CanResetPassword(user) {
 		SendUpdated(w)
 		return
 	}
@@ -470,6 +473,7 @@ func (router *AuthRouter) completeUserInvitation(w http.ResponseWriter, r *http.
 	}
 	user.HashedPassword = NullString(GetUserRepository().GetHashedPassword(m.Password))
 	user.PasswordPending = false
+	user.PasswordUpdateRequired = false
 	user.AuthProviderID = NullUUID("")
 	GetUserRepository().Update(user)
 	GetAuthStateRepository().Delete(authState)
@@ -545,27 +549,24 @@ func (router *AuthRouter) loginPassword(w http.ResponseWriter, r *http.Request) 
 		SendNotFound(w)
 		return
 	}
-	if user.HashedPassword == "" {
+
+	if !CanPasswordLogin(user) {
 		SendNotFound(w)
 		return
 	}
-	if user.PasswordPending {
-		SendNotFound(w)
-		return
-	}
-	if user.Disabled {
-		SendNotFound(w)
-		return
-	}
-	if user.Role == UserRoleServiceAccountRO || user.Role == UserRoleServiceAccountRW {
-		SendNotFound(w)
-		return
-	}
+
 	if !GetUserRepository().CheckPassword(string(user.HashedPassword), m.Password) {
 		GetAuthAttemptRepository().RecordLoginAttempt(user, false)
 		SendNotFound(w)
 		return
 	}
+
+	// check if password update is required
+	if user.PasswordUpdateRequired {
+		SendUnauthorizedCode(w, ResponseCodePasswordUpdateRequired)
+		return
+	}
+
 	passkeyResult := router.handlePasskey2FA(w, r, user, &m)
 	if passkeyResult == passkey2FAHandled {
 		return
@@ -600,24 +601,53 @@ func (router *AuthRouter) loginPassword(w http.ResponseWriter, r *http.Request) 
 		// Mark code as used to prevent replay
 		totpCache.markCodeAsUsed(user.ID, m.Code)
 	}
-	GetAuthAttemptRepository().RecordLoginAttempt(user, true)
-	now := time.Now().UTC()
-	user.LastActivityAtUTC = &now
-	GetUserRepository().Update(user)
-	session := router.CreateSession(r, user)
-	if session == nil {
-		log.Println("Error: Failed to create session during password login")
-		SendInternalServerError(w)
+
+	router.createAndSendJWT(w, r, user, "password login", "", "")
+}
+
+func (router *AuthRouter) updatePassword(w http.ResponseWriter, r *http.Request) {
+	if GetConfig().DisablePasswordLogin {
+		SendNotFound(w)
 		return
 	}
-	claims := router.CreateClaims(user, session)
-	accessToken := router.CreateAccessToken(claims)
-	refreshToken := router.createRefreshToken(claims)
-	res := &JWTResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+	var m PasswordUpdateRequest
+	if UnmarshalValidateBody(r, &m) != nil {
+		SendBadRequest(w)
+		return
 	}
-	SendJSON(w, res)
+
+	if m.Password == m.NewPassword {
+		SendBadRequest(w)
+		return
+	}
+
+	if !ValidatePassword(m.Password) {
+		SendBadRequest(w)
+		return
+	}
+
+	user, err := GetUserRepository().GetByEmail(m.OrganizationID, m.Email)
+	if err != nil {
+		SendNotFound(w)
+		return
+	}
+
+	// check if password update is allowed
+	if !CanUpdatePassword(user) {
+		SendNotFound(w)
+		return
+	}
+
+	if !GetUserRepository().CheckPassword(string(user.HashedPassword), m.Password) {
+		SendNotFound(w)
+		return
+	}
+
+	user.HashedPassword = NullString(GetUserRepository().GetHashedPassword(m.NewPassword))
+	user.PasswordUpdateRequired = false
+	GetUserRepository().Update(user)
+
+	router.createAndSendJWT(w, r, user, "password update", "", "")
 }
 
 func (router *AuthRouter) CreateSession(r *http.Request, user *User) *Session {
@@ -754,21 +784,8 @@ func (router *AuthRouter) handleAtlassianVerify(r *http.Request, authState *Auth
 		return
 	}
 	GetAuthStateRepository().Delete(authState)
-	GetAuthAttemptRepository().RecordLoginAttempt(user, true)
-	session := router.CreateSession(r, user)
-	if session == nil {
-		log.Println("Error: Failed to create session during Atlassian verify")
-		SendInternalServerError(w)
-		return
-	}
-	claims := router.CreateClaims(user, session)
-	accessToken := router.CreateAccessToken(claims)
-	refreshToken := router.createRefreshToken(claims)
-	res := &JWTResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-	}
-	SendJSON(w, res)
+
+	router.createAndSendJWT(w, r, user, "Atlassian verify", "", "")
 }
 
 func (router *AuthRouter) verify(w http.ResponseWriter, r *http.Request) {
@@ -861,26 +878,8 @@ func (router *AuthRouter) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	GetAuthStateRepository().Delete(authState)
-	GetAuthAttemptRepository().RecordLoginAttempt(user, true)
-	now := time.Now().UTC()
-	user.LastActivityAtUTC = &now
-	GetUserRepository().Update(user)
-	session := router.CreateSession(r, user)
-	if session == nil {
-		log.Println("Error: Failed to create session during OAuth verify")
-		SendInternalServerError(w)
-		return
-	}
-	claims := router.CreateClaims(user, session)
-	accessToken := router.CreateAccessToken(claims)
-	refreshToken := router.createRefreshToken(claims)
-	res := &JWTResponse{
-		AccessToken:    accessToken,
-		RefreshToken:   refreshToken,
-		LogoutURL:      router.getLogoutUrl(provider),
-		ProfilePageURL: router.getProfilePageURL(provider),
-	}
-	SendJSON(w, res)
+
+	router.createAndSendJWT(w, r, user, "OAuth verify", router.getLogoutUrl(provider), router.getProfilePageURL(provider))
 }
 
 func (router *AuthRouter) getLogoutUrl(provider *AuthProvider) string {
@@ -1271,4 +1270,27 @@ func unmarshalAuthStateLoginPayload(payload string) *AuthStateLoginPayload {
 	var o *AuthStateLoginPayload
 	json.Unmarshal([]byte(payload), &o)
 	return o
+}
+
+func (router *AuthRouter) createAndSendJWT(w http.ResponseWriter, r *http.Request, user *User, authMethod string, logoutURL string, profilePageURL string) {
+	GetAuthAttemptRepository().RecordLoginAttempt(user, true)
+	now := time.Now().UTC()
+	user.LastActivityAtUTC = &now
+	GetUserRepository().Update(user)
+	session := router.CreateSession(r, user)
+	if session == nil {
+		log.Println("Error: Failed to create session during " + authMethod)
+		SendInternalServerError(w)
+		return
+	}
+	claims := router.CreateClaims(user, session)
+	accessToken := router.CreateAccessToken(claims)
+	refreshToken := router.createRefreshToken(claims)
+	res := &JWTResponse{
+		AccessToken:    accessToken,
+		RefreshToken:   refreshToken,
+		LogoutURL:      logoutURL,
+		ProfilePageURL: profilePageURL,
+	}
+	SendJSON(w, res)
 }

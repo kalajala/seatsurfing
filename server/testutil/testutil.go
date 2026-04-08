@@ -37,23 +37,26 @@ var DatabaseTables = [...]string{
 	"buddies",
 	"debug_time_issues",
 	"groups",
+	"location_allowed_bookers",
 	"locations",
+	"mail_logs",
 	"organizations",
 	"organizations_domains",
+	"passkeys",
 	"recurring_bookings",
 	"refresh_tokens",
 	"sessions",
 	"settings",
+	"space_attribute_values",
+	"space_attributes",
+	"spaces",
+	"spaces_allowed_bookers",
+	"spaces_approvers",
 	"spaces_attributes",
 	"spaces_attributes_values",
-	"spaces",
-	"spaces_approvers",
-	"spaces_allowed_bookers",
-	"passkeys",
 	"users",
 	"users_groups",
 	"users_preferences",
-	"mail_logs",
 }
 
 func GetTestJWT(userID string) string {
@@ -169,6 +172,10 @@ func CreateTestUserOrgAdminDomain(org *Organization, domain string) *User {
 
 func CreateTestUserOrgAdmin(org *Organization) *User {
 	return CreateTestUserOrgAdminDomain(org, "test.com")
+}
+
+func CreateTestString(length int) string {
+	return strings.Repeat("a", 1000)
 }
 
 func LoginTestUserParams(userID string) *LoginResponse {

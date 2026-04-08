@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.81.1](https://github.com/seatsurfing/seatsurfing/compare/v1.81.0...v1.81.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* add additional request validation ([#1954](https://github.com/seatsurfing/seatsurfing/issues/1954)) ([ff8ce23](https://github.com/seatsurfing/seatsurfing/commit/ff8ce231d494305eccac862f329f748b369d00db))
+
+## [1.81.0](https://github.com/seatsurfing/seatsurfing/compare/v1.80.0...v1.81.0) (2026-04-05)
+
+
+### Features
+
+* mark current page in booking UI ([#1948](https://github.com/seatsurfing/seatsurfing/issues/1948)) ([a93da47](https://github.com/seatsurfing/seatsurfing/commit/a93da47ae4e663170f3d10434cfcb3e42f040c0b))
+
+
+### Bug Fixes
+
+* add validation for color code values ([#1949](https://github.com/seatsurfing/seatsurfing/issues/1949)) ([186170b](https://github.com/seatsurfing/seatsurfing/commit/186170b6976dd09398f36495e2684271cff7b408))
+* add validation for preferred location ([#1950](https://github.com/seatsurfing/seatsurfing/issues/1950)) ([e5b63ca](https://github.com/seatsurfing/seatsurfing/commit/e5b63ca73c9f0f2f65577601951cc546d1138fd7))
+* fix title of prev and next day buttons ([#1947](https://github.com/seatsurfing/seatsurfing/issues/1947)) ([08dc48e](https://github.com/seatsurfing/seatsurfing/commit/08dc48e0832c0d2f7ea0880a6219cf4eb55708b2))
+* limit booking subjects to max. 256 chars ([#1952](https://github.com/seatsurfing/seatsurfing/issues/1952)) ([dcf26bf](https://github.com/seatsurfing/seatsurfing/commit/dcf26bf6bd3934407807238ce63a9d5ceafded6c))
+* rename column "Username" to "User" ([#1946](https://github.com/seatsurfing/seatsurfing/issues/1946)) ([cbc8f00](https://github.com/seatsurfing/seatsurfing/commit/cbc8f00d960d60feb9f9d1d3e86afe874f587426))
+* set default check to max. length of 512 ([#1951](https://github.com/seatsurfing/seatsurfing/issues/1951)) ([a67d207](https://github.com/seatsurfing/seatsurfing/commit/a67d207dcd0f52d69e5c01842114b3888c111847))
+
+## [1.80.0](https://github.com/seatsurfing/seatsurfing/compare/v1.79.2...v1.80.0) (2026-04-04)
+
+
+### Features
+
+* add button to log out all sessions but the current one ([#1939](https://github.com/seatsurfing/seatsurfing/issues/1939)) ([b771ec5](https://github.com/seatsurfing/seatsurfing/commit/b771ec5ed187f5b21ac3784c7de7ee4d15c4c3ba))
+* update runtime to distroless Debian 13 ([#1942](https://github.com/seatsurfing/seatsurfing/issues/1942)) ([4da32ee](https://github.com/seatsurfing/seatsurfing/commit/4da32ee1d933c94ef1e2777f61aa38e0455d4828))
+* user needs to change init password on login ([#1935](https://github.com/seatsurfing/seatsurfing/issues/1935)) ([719cf10](https://github.com/seatsurfing/seatsurfing/commit/719cf109613eb3560e75c2db4de4762987a26a09))
+
+
+### Bug Fixes
+
+* fix Hebrew translation ([#1940](https://github.com/seatsurfing/seatsurfing/issues/1940)) ([8e6a0b4](https://github.com/seatsurfing/seatsurfing/commit/8e6a0b40ba251209a5f460fcc8537a6dfe790efa))
+* log error if password reset failed due to an error ([#1933](https://github.com/seatsurfing/seatsurfing/issues/1933)) ([5695f63](https://github.com/seatsurfing/seatsurfing/commit/5695f63cc827617fc83a86d80543c8149e45c6f1))
+* test user's AuthProviderID when login or reset password ([#1934](https://github.com/seatsurfing/seatsurfing/issues/1934)) ([9a45703](https://github.com/seatsurfing/seatsurfing/commit/9a4570340c20faf56d49cff02eace2a62d7c7e74))
+
+## [1.79.2](https://github.com/seatsurfing/seatsurfing/compare/v1.79.1...v1.79.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* delete user sessions when admin changes auth information ([#1929](https://github.com/seatsurfing/seatsurfing/issues/1929)) ([af18f2d](https://github.com/seatsurfing/seatsurfing/commit/af18f2d92994a7c05e3786eec41b145c32c5b8fb))
+* **deps:** bump lodash from 4.17.23 to 4.18.1 in /ui ([#1932](https://github.com/seatsurfing/seatsurfing/issues/1932)) ([ea45957](https://github.com/seatsurfing/seatsurfing/commit/ea45957d3c508cf4ba2881144224e52dd22b78eb))
+* **deps:** bump lodash-es from 4.17.23 to 4.18.1 in /ui ([#1930](https://github.com/seatsurfing/seatsurfing/issues/1930)) ([ac3fa91](https://github.com/seatsurfing/seatsurfing/commit/ac3fa914d4589ed67f74b52a0d0b2b51264c4262))
+* update email footer texts ([#1928](https://github.com/seatsurfing/seatsurfing/issues/1928)) ([d9fad2e](https://github.com/seatsurfing/seatsurfing/commit/d9fad2e966a8f8cea231fc6f9f18da4fcabd0832))
+
 ## [1.79.1](https://github.com/seatsurfing/seatsurfing/compare/v1.79.0...v1.79.1) (2026-03-31)
 
 
